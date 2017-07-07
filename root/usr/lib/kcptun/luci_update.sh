@@ -49,7 +49,7 @@ get_latest_luci_version() {
 check_luci() {
 	get_latest_luci_version
 
-	cat <<-EOF
+	cat >&1 <<-EOF
 		{
 		    "code": ${retval},
 		    "version": "$luci_version",

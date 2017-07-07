@@ -131,7 +131,7 @@ get_latest_kcptun_version() {
 check_kcptun() {
 	get_latest_kcptun_version "$1"
 
-	cat >&2 <<-EOF
+	cat >&1 <<-EOF
 		{
 		    "code": ${retval},
 		    "version": "$kcptun_version",
@@ -168,7 +168,7 @@ update_kcptun() {
 	download_file "$url" "$file_path"
 
 	if [ "$?" != "0" ]; then
-		rm -rf "$file_path" "$extract_path"
+		clean_all
 		_err "Can't download ${KCPTUN} file. Please check your network connection."
 		retval=23
 		return 1

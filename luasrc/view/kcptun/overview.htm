@@ -44,7 +44,7 @@
 			<tr>
 				<td width="33%"><%:Update LuCI%></td>
 				<td id="_kcptun-luci_version_notice">
-					<%:Collecting data...%>
+					<em><%:Collecting data...%></em>
 				</td>
 			</tr>
 			<tr><td width="33%"><%:Author%></td><td>Xingwang Liao &lt;kuoruan@gmail.com&gt;</td></tr>
@@ -105,17 +105,7 @@
 		return false;
 	}
 
-	function set_log_data(log_ta, log_data) {
-		if (log_data == 'error') {
-			log_ta.innerHTML = '<%:Log file does not exist...%>';
-		} else if (log_data == '') {
-			log_ta.innerHTML = '<%:No log data...%>';
-		} else {
-			log_ta.innerHTML = log_data;
-		}
-	}
-
-	function do_update(type) {
+	function do_update(btn, type) {
 		btn.disabled = true;
 		btn.value    = '<%:Processing...%>';
 
@@ -125,86 +115,133 @@
 			{ token: '<%=token%>' },
 			function(x) {
 				if (x.status == 200 && elem) {
-					if (x.responseText == '0') {
-						btn.value = '<%:Update success!%>'
-					} else {
-						btn.value    = '<%:Update failed! Please try agin later.%>'
-						btn.disabled = false;
+					var code = parseInt(x.responseText);
+					switch (code) {
+						case 0:
+							btn.value = '<%:Update success!%>';
+							btn.disabled = true;
+							break;
+						case 23:
+							btn.value = '<%:Download file failed. Please retry.%>';
+							btn.disabled = false;
+							break;
+						default:
+							btn.value    = '<%:Update failed! Please try agin later.%>';
+							btn.disabled = true;
+							break;
 					}
 				} else {
-					btn.value    = btn.placeholder;
+					btn.value    = '<%:Unknown error.%>';
 					btn.disabled = false;
 				}
 			}
 		);
-
 		return false;
 	}
 
-	XHR.poll(5, '<%=luci.dispatcher.build_url("admin", "services", "kcptun", "info")%>', null,
-		function(x, info) {
-			var client_status_tb = document.getElementById('_kcptun-client_status');
-			var client_log_ta    = document.getElementById('_kcptun-client_log');
-			var event_log_ta     = document.getElementById('_kcptun-event_log');
-
-			if (client_status_tb) {
-					client_status_tb.innerHTML = info.client.running ? '<%:Running%>' : '<%:Not Running%>';
-			}
-
-			if (client_log_ta) {
-				set_log_data(client_log_ta, info.client.log);
-			}
-
-			if (event_log_ta) {
-				set_log_data(event_log_ta, info.event.log);
+	(function(doc) {
+		function set_log_data(log_ta, log_data) {
+			if (log_data == 'error') {
+				log_ta.innerHTML = '<%:Log file does not exist...%>';
+			} else if (log_data == '') {
+				log_ta.innerHTML = '<%:No log data...%>';
+			} else {
+				log_ta.innerHTML = log_data;
 			}
 		}
-	);
 
-	(function() {
-		var types = [ 'kcptun', 'luci' ];
-		for (var i = 0, type; type = types[i++];) {
-			var btn = document.getElementById('_kcptun-update_' + type);
-			var notice = document.getElementById('_kcptun-' + type + '_version_notice');
+		XHR.poll(5, '<%=luci.dispatcher.build_url("admin", "services", "kcptun", "info")%>', null,
+			function(x, info) {
+				if (x.status == 200 && info) {
+					var client_info = info.client;
+					var event_info  = info.event;
 
-			(new XHR()).get('<%=luci.dispatcher.build_url("admin", "services", "kcptun", "check")%>/' + type,
-				{ token: '<%=token%>', arch: '<%=arch%>' },
-				function(x, info) {
-					var code = parseInt(info.code);
-					switch (code) {
-						case 0:
-							if (info.needs_update) {
-								if (btn) {
-									btn.value    = '<%:Update Now!%>';
-									btn.disabled = false;
-								}
+					if (client_info) {
+						var client_status_tb = doc.getElementById('_kcptun-client_status');
+						var client_log_ta    = doc.getElementById('_kcptun-client_log');
 
-								if (notice) {
-									var new_str = '<%:New version %s found%>';
-									notice.innerHTML = '<p>' + new_str.replace('%s', info.version)
-										+ '<a href="' + info.html_url
-										+ '" target="_blank"><%:View details%></a></p>';
-								}
-							} else {
-								if (btn) {
-									btn.value = '<%:No Update found.%>';
-									btn.disabled = true;
-								}
-								if (notice) {
-									notice.innerHTML = '';
-								}
-							}
-							break;
-						default:
-							if (btn) {
-								btn.value    = '<%:Unknown error.%>';
-								btn.disabled = true;
-							}
-							break;
+						if (client_status_tb) {
+								client_status_tb.innerHTML = client_info.running ?
+									'<%:Running%>' : '<%:Not Running%>';
+						}
+						if (client_log_ta) {
+							set_log_data(client_log_ta, client_info.log);
+						}
+					}
+
+					if (event_info) {
+						var event_log_ta = doc.getElementById('_kcptun-event_log');
+						if (event_log_ta) {
+							set_log_data(event_log_ta, event_info.log);
+						}
 					}
 				}
-			);
+			}
+		);
+
+		var types = [ 'kcptun', 'luci' ];
+		for (var i = 0, type; type = types[i++];) {
+			(function(type) {
+				var update_btn = doc.getElementById('_kcptun-update_' + type);
+				var notice = doc.getElementById('_kcptun-' + type + '_version_notice');
+
+				(new XHR()).get('<%=luci.dispatcher.build_url("admin", "services", "kcptun", "check")%>/' + type,
+					{ token: '<%=token%>', arch: '<%=arch%>' },
+					function(x, info) {
+						var code = parseInt(info.code);
+						switch (code) {
+							case 0:
+								if (info.needs_update) {
+									var version = info.version;
+									var html_url = info.html_url;
+
+									if (update_btn) {
+										update_btn.value    = '<%:Update now!%>';
+										update_btn.disabled = false;
+									}
+
+									if (notice) {
+										var notice_str = '';
+										if (version && version != '') {
+											notice_str += '<%:New version %s found%>'
+												.replace('%s', '<em>' + version + '</em>');
+										}
+
+										if (html_url && html_url != '') {
+											notice_str = '<p>' + notice_str + '<a href="' + html_url
+												+ '" target="_blank"><%:View details%></a></p>';
+										}
+
+										if (notice_str != '') {
+											notice.innerHTML = notice_str;
+										} else {
+											notice.innerHTML = '<em><%:No update infomation.%></em>';
+										}
+									}
+								} else {
+									if (update_btn && notice) {
+										update_btn.value = '<%:No update found.%>';
+										update_btn.disabled = true;
+										notice.innerHTML = '';
+									} else if (notice) {
+										notice.innerHTML = '<em><%:No update found.%></em>';
+									}
+								}
+								break;
+							default:
+								if (update_btn && notice) {
+									update_btn.value    = '<%:Check update error.%>';
+									update_btn.disabled = true;
+									notice.innerHTML = '';
+								} else if (notice) {
+									notice.innerHTML = '<em><%:Check update error.%></em>';
+								}
+								break;
+						}
+					}
+				);
+			})(type);
 		}
-	})();
+	})(document);
 //]]></script>
 <%+footer%>
